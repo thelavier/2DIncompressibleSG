@@ -68,7 +68,7 @@ def ot_solve(domain, Y, psi0, err_tol, PeriodicX, PeriodicY):
             ot.pd.add_replication( [ x, 0 ] )
 
     elif PeriodicX == False and PeriodicY == True:
-        for y in [ -1, 0, 1 ]:
+        for y in [ -1, 1 ]:
             ot.pd.add_replication( [ 0, y ] )
     
     else:
