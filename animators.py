@@ -54,9 +54,9 @@ def point_animator(data, ZorC, tf):
             ax.set_ylabel('Y')
         elif ZorC == 'C':
             ax.cla()
-            ax.scatter(C[i][:,0], C[i][:,1], c = Z[i][:,0], cmap = 'jet', edgecolor = 'none', s = 8)
-            ax.set_xlim([-3, 3])
-            ax.set_ylim([-3, 3])
+            ax.scatter(C[i][:,0], C[i][:,1], color = 'blue', s = 8)
+            ax.set_xlim([-1, 1])
+            ax.set_ylim([-1, 1])
             ax.set_xlabel('X')
             ax.set_ylabel('Y')
         else:

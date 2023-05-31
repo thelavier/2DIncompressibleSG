@@ -13,6 +13,8 @@ def SGSolver(Box, InitialSeeds, NumberofSeeds, PercentTolerance, FinalTime, Numb
         PercentTolerance: Percent tolerance, ex. 1 means 1% tolerance
         FinalTime: The end point of the simulation
         NumberofSteps: The number of steps to take to get from t=0 to t=time final
+        PeriodicX: a boolian indicating if the boundaries are periodic in x 
+        PeriodicY: a boolian indicating if the boundaries are periodic in y
 
         Note: The last two parameters are set up this way to integrate more easily with the animator, could be changed 
 
@@ -28,7 +30,7 @@ def SGSolver(Box, InitialSeeds, NumberofSeeds, PercentTolerance, FinalTime, Numb
     Ndt = NumberofSteps
 
     #Construct the domain
-    D = ots.make_domain(box)
+    D = ots.make_domain(box, PeriodicX, PeriodicY)
 
     #Compute the stepsize
     dt = tf/Ndt
@@ -81,7 +83,7 @@ def SGSolver(Box, InitialSeeds, NumberofSeeds, PercentTolerance, FinalTime, Numb
         #Save the optimal weights
         w[i] = sol[1].copy()
 
-        #print(i) #Use for tracking progress of the code when debugging.
+        print(i) #Use for tracking progress of the code when debugging.
 
     #Save the data
     np.savez('SG_data.npz', data1 = Z, data2 = C, data3 = w)
