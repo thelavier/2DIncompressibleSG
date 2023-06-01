@@ -28,6 +28,7 @@ def make_domain(box, PeriodicX, PeriodicY):
         domain.add_box([box[0] - 1, box[1] - 1], [box[2] + 1, box[3] + 1])
     else:
         AssertionError('Please specify periodicity.')
+        
     return domain
 
 #Solve the Optimal transport problem and return the centroids and weights
@@ -70,7 +71,7 @@ def ot_solve(domain, Y, psi0, err_tol, PeriodicX, PeriodicY):
             ot.pd.add_replication( [ 0, y ] )
     
     else:
-        AssertionError('Please specify the periodicity')
+        AssertionError('Please specify the periodicity.')
 
     #print('Target masses before Damped Newton', ot.get_masses())
     #print('Weights before Damped Newton', ot.get_weights())
