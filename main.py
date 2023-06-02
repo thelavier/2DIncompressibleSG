@@ -1,8 +1,9 @@
 import numpy as np
 import optimaltransportsolver as ots
 import weightguess as wg
+import auxfunctions as aux
 
-def SGSolver(Box, InitialSeeds, NumberofSeeds, PercentTolerance, FinalTime, NumberofSteps, PeriodicX, PeriodicY):
+def SG_solver(Box, InitialSeeds, NumberofSeeds, PercentTolerance, FinalTime, NumberofSteps, PeriodicX, PeriodicY, a):
     """
     Function solving the Semi-Geostrophic equations using the geometric method.
 
@@ -15,6 +16,7 @@ def SGSolver(Box, InitialSeeds, NumberofSeeds, PercentTolerance, FinalTime, Numb
         NumberofSteps: The number of steps to take to get from t=0 to t=time final
         PeriodicX: a boolian indicating if the boundaries are periodic in x 
         PeriodicY: a boolian indicating if the boundaries are periodic in y
+        a: the replication parameter
 
         Note: The last two parameters are set up this way to integrate more easily with the animator, could be changed 
 
@@ -30,7 +32,7 @@ def SGSolver(Box, InitialSeeds, NumberofSeeds, PercentTolerance, FinalTime, Numb
     Ndt = NumberofSteps
 
     #Construct the domain
-    D = ots.make_domain(box, PeriodicX, PeriodicY)
+    D = ots.make_domain(box, PeriodicX, PeriodicY, a)
 
     #Compute the stepsize
     dt = tf/Ndt
@@ -49,17 +51,17 @@ def SGSolver(Box, InitialSeeds, NumberofSeeds, PercentTolerance, FinalTime, Numb
 
     #Construct the initial state
     Z[0] = Z0
-    w0 = wg.Rescale_weights(box, Z[0], np.zeros(shape = (N,)), PeriodicX, PeriodicY)[0] #Rescale the weights to generate an optimized initial guess
-    sol = ots.ot_solve(D, Z[0], w0, err_tol, PeriodicX, PeriodicY) #Solve the optimal transport problem
+    w0 = wg.rescale_weights(box, Z[0], np.zeros(shape = (N,)), PeriodicX, PeriodicY)[0] #Rescale the weights to generate an optimized initial guess
+    sol = ots.ot_solve(D, Z[0], w0, err_tol, PeriodicX, PeriodicY, a) #Solve the optimal transport problem
     C[0] = sol[0].copy() #Store the centroids
     w[0] = sol[1].copy() #Store the optimal weights
 
     #Use forward Euler to take an initial time step
-    Zmod = Z[0].copy()
-    Zmod[:, 1] = 0
-    Z[1] = Z[0] + dt * (J @ (np.array(Zmod - C[0]).flatten())).reshape((N, 2))
-    w0 = wg.Rescale_weights(box, Z[1], np.zeros(shape = (N,)), PeriodicX, PeriodicY)[0] #Rescale the weights to generate an optimized initial guess
-    sol = ots.ot_solve(D, Z[1], w0, err_tol, PeriodicX, PeriodicY) #Solve the optimal transport problem
+    Zmod = aux.zero_y_component(Z, 0)
+    Zint = Z[0] + dt * (J @ (np.array(Zmod - C[0]).flatten())).reshape((N, 2))
+    Z[1] = aux.get_remapped_seeds(box, Zint, PeriodicX, PeriodicY)
+    w0 = wg.rescale_weights(box, Z[1], np.zeros(shape = (N,)), PeriodicX, PeriodicY)[0] #Rescale the weights to generate an optimized initial guess
+    sol = ots.ot_solve(D, Z[1], w0, err_tol, PeriodicX, PeriodicY, a) #Solve the optimal transport problem
     C[1] = sol[0].copy() #Store the centroids
     w[1] = sol[1].copy() #Store the optimal weights
 
@@ -67,17 +69,16 @@ def SGSolver(Box, InitialSeeds, NumberofSeeds, PercentTolerance, FinalTime, Numb
     for i in range(2, Ndt):
 
         #Use Adams-Bashforth to take a time step
-        Zmod1 = Z[i - 1].copy()
-        Zmod2 = Z[i - 2].copy()
-        Zmod1[:, 1] = 0
-        Zmod2[:, 1] = 0
-        Z[i] = Z[i - 1] + (dt / 2) * (3 * J @ (np.array(Zmod1 - C[i - 1]).flatten()) - J @ (np.array(Zmod2 - C[i - 2]).flatten())).reshape((N, 2))
+        Zmod1 = aux.zero_y_component(Z, i - 1)
+        Zmod2 = aux.zero_y_component(Z, i - 2)
+        Zint = Z[i - 1] + (dt / 2) * (3 * J @ (np.array(Zmod1 - C[i - 1]).flatten()) - J @ (np.array(Zmod2 - C[i - 2]).flatten())).reshape((N, 2))
+        Z[i] = aux.get_remapped_seeds(box, Zint, PeriodicX, PeriodicY)
 
         #Rescale the weights to generate an optimized initial guess
-        w0 = wg.Rescale_weights(box, Z[i], np.zeros(shape = (N,)), PeriodicX, PeriodicY)[0]
+        w0 = wg.rescale_weights(box, Z[i], np.zeros(shape = (N,)), PeriodicX, PeriodicY)[0]
 
         #Solve the optimal transport problem
-        sol = ots.ot_solve(D, Z[i], w0, err_tol, PeriodicX, PeriodicY)
+        sol = ots.ot_solve(D, Z[i], w0, err_tol, PeriodicX, PeriodicY, a)
         C[i] = sol[0].copy()
 
         #Save the optimal weights
