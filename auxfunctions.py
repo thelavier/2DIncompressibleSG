@@ -14,19 +14,22 @@ def get_remapped_seeds(box, Z, PeriodicX, PeriodicY):
         Z: the seeds remaped to be inside the domain
 
     """
+    if PeriodicX == True or PeriodicY == True:
+        p = [PeriodicX, PeriodicY]
     
-    p = [PeriodicX, PeriodicY]
-    
-    bxDims = [box[2] - box[0], box[3] - box[1]]  # domain dimensions
-    Binv = np.diag(p) / np.array(bxDims)     # 2x2 matrix to normalize seeds in periodic directions
-    
-    # Get n x 2 matrix
-    # k = argmin_{l}|Z + l*diag(bxDims)|,
-    # where the minimum is taken over all n x 2 matrices with integer
-    # entries and n is the number of seeds
-    k = np.floor(-np.dot(Z, Binv) + 0.5 * np.ones((1, 2)))
-    
-    Z = Z + np.dot(k, np.diag(bxDims))
+        bxDims = [box[2] - box[0], box[3] - box[1]]  # domain dimensions
+        Binv = np.diag(p) / np.array(bxDims)     # 2x2 matrix to normalize seeds in periodic directions
+
+        # Get n x 2 matrix
+        # k = argmin_{l}|Z + l*diag(bxDims)|,
+        # where the minimum is taken over all n x 2 matrices with integer
+        # entries and n is the number of seeds
+        k = np.floor(-np.dot(Z, Binv) + 0.5 * np.ones((1, 2)))
+
+        Z = Z + np.dot(k, np.diag(bxDims))
+
+    else:
+        pass
     
     return Z
 
