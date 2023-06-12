@@ -46,15 +46,15 @@ def rescale_weights(bx, Z, psi, PeriodicX, PeriodicY):
         min_Z_y = np.min(Z_y)
         max_Z_y = np.max(Z_y)
 
-        lambda_ = (bx[3] - bx[1]) / (max_Z_y - min_Z_y) * (1 - 1e-2)
+        lambda_ = (bx[3] - bx[1]) / (max_Z_y - min_Z_y) * (1 - 1e-2) # Define the scaling
     
         # Define translation to be the center of the domain minus the center of the rescaled seeds
         c_dom = (bx[3] + bx[1]) / 2
         c_zl = lambda_ * (min_Z_y + max_Z_y) / 2
-        t = c_dom - c_zl
+        t = c_dom - c_zl # Define the translation
     
         # Define weights
-        w = (1 - lambda_) * np.square(np.linalg.norm(Z_y)) - 2 * Z_y * t - psi / lambda_
+        w = (1 - lambda_) * np.square(Z_y) - 2 * Z_y * t - psi / lambda_
 
     elif PeriodicX == False and PeriodicY == True:
         # Define rescaling so that rescaled seeds lie in a translated copy of bx
@@ -70,7 +70,7 @@ def rescale_weights(bx, Z, psi, PeriodicX, PeriodicY):
         t = c_dom - c_zl
     
         # Define weights
-        w = (1 - lambda_) * np.square(np.linalg.norm(Z_x)) - 2 * Z_x * t - psi / lambda_
+        w = (1 - lambda_) * np.square(Z_x) - 2 * Z_x * t - psi / lambda_
 
     elif PeriodicX == True and PeriodicY == True:
         w = psi
