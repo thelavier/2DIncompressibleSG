@@ -19,7 +19,7 @@ def create_initial(N, minx, miny, maxx, maxy, Type):
         matrix: The initial seeds positions
     """
 
-    #Compute the cubic root of the number of seeds to later check that we can generate a valid lattice
+    #Compute the square root of the number of seeds to later check that we can generate a valid lattice
     croot = round(N ** (1 / 2))
 
     if Type == 'uniform':

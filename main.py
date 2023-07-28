@@ -51,19 +51,27 @@ def SG_solver(Box, InitialSeeds, NumberofSeeds, PercentTolerance, FinalTime, Num
 
     #Construct the initial state
     Z[0] = Z0
+
     w0 = wg.rescale_weights(box, Z[0], np.zeros(shape = (N,)), PeriodicX, PeriodicY)[0] #Rescale the weights to generate an optimized initial guess
     sol = ots.ot_solve(D, Z[0], w0, err_tol, PeriodicX, PeriodicY, a) #Solve the optimal transport problem
+
     C[0] = sol[0].copy() #Store the centroids
     w[0] = sol[1].copy() #Store the optimal weights
+
+    print(0) #Use for tracking progress of the code when debugging.
 
     #Use forward Euler to take an initial time step
     Zmod = aux.zero_y_component(Z, 0) #Zero ou the y component for the ode solver
     Zint = Z[0] + dt * (J @ (np.array(Zmod - C[0]).flatten())).reshape((N, 2)) #Use forward Euler
     Z[1] = aux.get_remapped_seeds(box, Zint, PeriodicX, PeriodicY) #Remap the seeds to lie in the domain
+
     w0 = wg.rescale_weights(box, Z[1], np.zeros(shape = (N,)), PeriodicX, PeriodicY)[0] #Rescale the weights to generate an optimized initial guess
     sol = ots.ot_solve(D, Z[1], w0, err_tol, PeriodicX, PeriodicY, a) #Solve the optimal transport problem
+
     C[1] = sol[0].copy() #Store the centroids
     w[1] = sol[1].copy() #Store the optimal weights
+
+    print(1) #Use for tracking progress of the code when debugging.
 
     #Apply Adams-Bashforth 2 to solve the ODE
     for i in range(2, Ndt):
