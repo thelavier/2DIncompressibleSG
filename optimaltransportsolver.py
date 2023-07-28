@@ -56,7 +56,7 @@ def ot_solve(domain, Y, psi0, err_tol, PeriodicX, PeriodicY, a):
     """
     N = Y.shape[0] #Determine the number of seeds
     #ot = OptimalTransport(positions = Y, weights = psi0, masses = domain.measure() / N * np.ones(N), domain = domain, linear_solver= 'Petsc') #Establish the Optimal Transport problem
-    ot = OptimalTransport(positions = Y, weights = psi0, masses = 8 * np.ones(N) / N, domain = domain, linear_solver= 'Scipy') #Establish the Optimal Transport problem
+    ot = OptimalTransport(positions = Y, weights = psi0, masses = 8 * np.ones(N) / N, domain = domain, linear_solver= 'Petsc') #Establish the Optimal Transport problem
     ot.set_stopping_criterion(err_tol, 'max delta masses') #Pick the stopping criterion to be the mass of the cells
 
     if PeriodicX == False and PeriodicY == False:

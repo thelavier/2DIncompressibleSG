@@ -57,9 +57,9 @@ def SG_solver(Box, InitialSeeds, NumberofSeeds, PercentTolerance, FinalTime, Num
     w[0] = sol[1].copy() #Store the optimal weights
 
     #Use forward Euler to take an initial time step
-    Zmod = aux.zero_y_component(Z, 0)
-    Zint = Z[0] + dt * (J @ (np.array(Zmod - C[0]).flatten())).reshape((N, 2))
-    Z[1] = aux.get_remapped_seeds(box, Zint, PeriodicX, PeriodicY)
+    Zmod = aux.zero_y_component(Z, 0) #Zero ou the y component for the ode solver
+    Zint = Z[0] + dt * (J @ (np.array(Zmod - C[0]).flatten())).reshape((N, 2)) #Use forward Euler
+    Z[1] = aux.get_remapped_seeds(box, Zint, PeriodicX, PeriodicY) #Remap the seeds to lie in the domain
     w0 = wg.rescale_weights(box, Z[1], np.zeros(shape = (N,)), PeriodicX, PeriodicY)[0] #Rescale the weights to generate an optimized initial guess
     sol = ots.ot_solve(D, Z[1], w0, err_tol, PeriodicX, PeriodicY, a) #Solve the optimal transport problem
     C[1] = sol[0].copy() #Store the centroids
@@ -69,10 +69,10 @@ def SG_solver(Box, InitialSeeds, NumberofSeeds, PercentTolerance, FinalTime, Num
     for i in range(2, Ndt):
 
         #Use Adams-Bashforth to take a time step
-        Zmod1 = aux.zero_y_component(Z, i - 1)
-        Zmod2 = aux.zero_y_component(Z, i - 2)
-        Zint = Z[i - 1] + (dt / 2) * (3 * J @ (np.array(Zmod1 - C[i - 1]).flatten()) - J @ (np.array(Zmod2 - C[i - 2]).flatten())).reshape((N, 2))
-        Z[i] = aux.get_remapped_seeds(box, Zint, PeriodicX, PeriodicY)
+        Zmod1 = aux.zero_y_component(Z, i - 1) #Zero out the y componenent for the ode solver
+        Zmod2 = aux.zero_y_component(Z, i - 2) #Zero out the y componenent for the ode solver
+        Zint = Z[i - 1] + (dt / 2) * (3 * J @ (np.array(Zmod1 - C[i - 1]).flatten()) - J @ (np.array(Zmod2 - C[i - 2]).flatten())).reshape((N, 2)) #Use AB2
+        Z[i] = aux.get_remapped_seeds(box, Zint, PeriodicX, PeriodicY) #Remap the seeds to lie in the domain
 
         #Rescale the weights to generate an optimized initial guess
         w0 = wg.rescale_weights(box, Z[i], np.zeros(shape = (N,)), PeriodicX, PeriodicY)[0]
