@@ -1,7 +1,7 @@
 import numpy as np
 
 #Construct initial condition
-def create_initial(N, minx, miny, maxx, maxy, Type):
+def create_artifical_initial(N, minx, miny, maxx, maxy, Type, pert):
     """
     Function that constructs an initial condition. Allows for different distributions on different axes.
 
@@ -14,6 +14,7 @@ def create_initial(N, minx, miny, maxx, maxy, Type):
         miny: The minimum position in the y direction
         minz: The minimum position in the z direction
         Type: Type of initial condition to generate
+        pert: A number between 2 and 0 that indicates the strength of a random perturbation to the initial conditions, 1 being no perturbation
 
     Outputs:
         matrix: The initial seeds positions
@@ -74,7 +75,7 @@ def create_initial(N, minx, miny, maxx, maxy, Type):
         matrix = np.column_stack((Col_0.flatten(), Col_1.flatten()))
 
         # Construct matrix of perturbations
-        perturbation = np.random.uniform(0.8, 1, size = (N, 2))
+        perturbation = np.random.uniform(pert, 1, size = (N, 2))
 
         return matrix * perturbation
 
@@ -93,7 +94,7 @@ def create_initial(N, minx, miny, maxx, maxy, Type):
         matrix = np.column_stack((Col_0.flatten(), Col_1.flatten()))
 
         # Construct matrix of perturbations
-        perturbation = np.random.uniform(0.8, 1, size = (N, 2))
+        perturbation = np.random.uniform(pert, 1, size = (N, 2))
 
         return matrix * perturbation
 

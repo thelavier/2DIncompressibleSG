@@ -3,7 +3,7 @@ import optimaltransportsolver as ots
 import weightguess as wg
 import auxfunctions as aux
 
-def SG_solver(Box, InitialSeeds, NumberofSeeds, PercentTolerance, FinalTime, NumberofSteps, PeriodicX, PeriodicY, a):
+def SG_solver(Box, InitialSeeds, NumberofSeeds, PercentTolerance, FinalTime, NumberofSteps, PeriodicX, PeriodicY, a, solver = 'Petsc', debug = False):
     """
     Function solving the Semi-Geostrophic equations using the geometric method.
 
@@ -17,6 +17,8 @@ def SG_solver(Box, InitialSeeds, NumberofSeeds, PercentTolerance, FinalTime, Num
         PeriodicX: a boolian indicating if the boundaries are periodic in x 
         PeriodicY: a boolian indicating if the boundaries are periodic in y
         a: the replication parameter
+        solver: a string indicating which linear solver to use when solving the optimal transport problem
+        debug: a boolian indicating if the code is in debug mode
 
         Note: The last two parameters are set up this way to integrate more easily with the animator, could be changed 
 
@@ -48,17 +50,25 @@ def SG_solver(Box, InitialSeeds, NumberofSeeds, PercentTolerance, FinalTime, Num
 
     #Build the relative error tollereance 
     err_tol = ( per_tol / 100 ) * (D.measure() / N) 
+    
+    if debug == True:
+        print("Time Step", 0) #Use for tracking progress of the code when debugging.
+    else:
+        pass
 
     #Construct the initial state
     Z[0] = Z0
 
     w0 = wg.rescale_weights(box, Z[0], np.zeros(shape = (N,)), PeriodicX, PeriodicY)[0] #Rescale the weights to generate an optimized initial guess
-    sol = ots.ot_solve(D, Z[0], w0, err_tol, PeriodicX, PeriodicY, a) #Solve the optimal transport problem
+    sol = ots.ot_solve(D, Z[0], w0, err_tol, PeriodicX, PeriodicY, a, solver, debug) #Solve the optimal transport problem
 
     C[0] = sol[0].copy() #Store the centroids
     w[0] = sol[1].copy() #Store the optimal weights
 
-    print(0) #Use for tracking progress of the code when debugging.
+    if debug == True:
+        print("Time Step", 1) #Use for tracking progress of the code when debugging.
+    else:
+        pass
 
     #Use forward Euler to take an initial time step
     Zmod = aux.zero_y_component(Z, 0) #Zero ou the y component for the ode solver
@@ -66,15 +76,18 @@ def SG_solver(Box, InitialSeeds, NumberofSeeds, PercentTolerance, FinalTime, Num
     Z[1] = aux.get_remapped_seeds(box, Zint, PeriodicX, PeriodicY) #Remap the seeds to lie in the domain
 
     w0 = wg.rescale_weights(box, Z[1], np.zeros(shape = (N,)), PeriodicX, PeriodicY)[0] #Rescale the weights to generate an optimized initial guess
-    sol = ots.ot_solve(D, Z[1], w0, err_tol, PeriodicX, PeriodicY, a) #Solve the optimal transport problem
+    sol = ots.ot_solve(D, Z[1], w0, err_tol, PeriodicX, PeriodicY, a, solver, debug) #Solve the optimal transport problem
 
     C[1] = sol[0].copy() #Store the centroids
     w[1] = sol[1].copy() #Store the optimal weights
 
-    print(1) #Use for tracking progress of the code when debugging.
-
     #Apply Adams-Bashforth 2 to solve the ODE
     for i in range(2, Ndt):
+
+        if debug == True:
+            print("Time Step", i) #Use for tracking progress of the code when debugging.
+        else:
+            pass
 
         #Use Adams-Bashforth to take a time step
         Zmod1 = aux.zero_y_component(Z, i - 1) #Zero out the y componenent for the ode solver
@@ -86,13 +99,11 @@ def SG_solver(Box, InitialSeeds, NumberofSeeds, PercentTolerance, FinalTime, Num
         w0 = wg.rescale_weights(box, Z[i], np.zeros(shape = (N,)), PeriodicX, PeriodicY)[0]
 
         #Solve the optimal transport problem
-        sol = ots.ot_solve(D, Z[i], w0, err_tol, PeriodicX, PeriodicY, a)
+        sol = ots.ot_solve(D, Z[i], w0, err_tol, PeriodicX, PeriodicY, a, solver, debug)
         C[i] = sol[0].copy()
 
         #Save the optimal weights
         w[i] = sol[1].copy()
-
-        print(i) #Use for tracking progress of the code when debugging.
 
     #Save the data
     np.savez('SG_data.npz', data1 = Z, data2 = C, data3 = w)
