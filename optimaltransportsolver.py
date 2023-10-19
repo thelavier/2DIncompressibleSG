@@ -71,7 +71,7 @@ def ot_solve(domain, Y, psi0, err_tol, PeriodicX, PeriodicY, a, solver = 'Petsc'
                     ot.pd.add_replication( [ x, y ] )
 
     elif PeriodicX == True and PeriodicY == False:
-        ot = OptimalTransport(positions = Y, weights = psi0, masses = 4 * np.ones(N) / N, domain = domain, linear_solver = solver) #Establish the Optimal Transport problem
+        ot = OptimalTransport(positions = Y, weights = psi0, masses = 1 * np.ones(N) / N, domain = domain, linear_solver = solver) #Establish the Optimal Transport problem
         ot.set_stopping_criterion(err_tol, 'max delta masses') #Pick the stopping criterion to be the mass of the cells
         for x in [ -a, a ]:
             ot.pd.add_replication( [ x, 0 ] )
@@ -86,7 +86,8 @@ def ot_solve(domain, Y, psi0, err_tol, PeriodicX, PeriodicY, a, solver = 'Petsc'
         AssertionError('Please specify the periodicity.')
 
     if debug == True:
-        print('Target masses before Damped Newton', ot.get_masses())
+        premass = ot.get_masses()
+        print('Target masses before Damped Newton', premass)
         print('Weights before Damped Newton', ot.get_weights())
         print('Mass before Damped Newton', ot.pd.integrals(), 'Total:', sum(ot.pd.integrals()))
     else:
@@ -96,8 +97,9 @@ def ot_solve(domain, Y, psi0, err_tol, PeriodicX, PeriodicY, a, solver = 'Petsc'
     psi = ot.pd.get_weights() #Extract the optimal weights from the solver
 
     if debug == True:
-        print('Mass after Damped Newton', ot.pd.integrals(), 'Total:', sum(ot.pd.integrals())) #Print the mass of each cell
-        print('Difference in initial and final weights', np.linalg.norm(psi0-psi)) #Check how different the initial guess is from the optimal weights
+        postmass = ot.pd.integrals()
+        print('Mass after Damped Newton', postmass, 'Total:', sum(postmass)) #Print the mass of each cell
+        print('Difference in traget and final mass', np.linalg.norm(premass-postmass)) #Check how different the final masses are from the target masses
     else:
         pass
 
