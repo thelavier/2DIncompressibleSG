@@ -106,4 +106,4 @@ def SG_solver(Box, InitialSeeds, NumberofSeeds, PercentTolerance, FinalTime, Num
         w[i] = sol[1].copy()
 
     #Save the data
-    np.savez('SG_data.npz', data1 = Z, data2 = C, data3 = w)
+    np.savez('./data/SG_data.npz', data1 = Z, data2 = C, data3 = w)
