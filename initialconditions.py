@@ -1,5 +1,8 @@
 import numpy as np
 import auxfunctions as aux
+from pysdot import OptimalTransport
+import optimaltransportsolver as ots
+import weightguess as wg
 
 #Construct initial an artificial initial condition
 def create_artifical_initial(N, minx, miny, maxx, maxy, Type, pert):
@@ -103,7 +106,7 @@ def create_artifical_initial(N, minx, miny, maxx, maxy, Type, pert):
         raise ValueError('Please specify the type of initial condition you want to use and make sure the number of seeds can generate a valid lattice.')
 
 #Construct physical initial conditions as done by Charles Egan
-def create_physical_inital(perttype, g, s, f, th0, L, H, N, a, numCols):
+def create_physical_inital(perttype, g, s, f, th0, L, H, N, a, numCols, periodicx, periodicy):
     """
     Function for initialising the Geometric method of Cullen & Purser (1984) for solving the Lagrangian SG Eady slice equations with a small perturbation of the shear flow steady state defined in line 78.
 
@@ -124,6 +127,8 @@ def create_physical_inital(perttype, g, s, f, th0, L, H, N, a, numCols):
         N: double; bouyancy frequency
         a: double; amplitude of perturbation
         numCols: double; desired number of columns of seeds
+        periodicx: boolian; indicates if the domain is periodic in the x direction
+        periodicy: boolian; indicates if the domain is periodic in the y direction
 
     Outputs:
         Z: n x 2 array; seed locations
@@ -156,16 +161,13 @@ def create_physical_inital(perttype, g, s, f, th0, L, H, N, a, numCols):
     delta = (R[2] - R[0]) / numCols
     Z0 = aux.getTriLattice(R, delta)
     n = Z0.shape[0]
+
+    D = ots.make_domain(R, periodicx, periodicy)
     w0 = np.zeros(n)
-    numLloyd = 100
-    perL = True
-    perV = False
+    ot = OptimalTransport(positions = Z0, weights = w0, domain = D)
 
-    #for iteration in range(numLloyd):
-    #    _, _, Z0 = mexPDall_2d(R, Z0, w0, perL, perV)
-
-    M = 0 #mexPDall_2d(R, Z0, w0, perL, perV) * (f ** 2 / N ** 2)
+    M = ot.pd.integrals() * (f ** 2 / N ** 2)
     X = np.column_stack([Z0[:, 0], (f ** 2 / N ** 2) * Z0[:, 1] - H / 2])
-    Z = DP(X[:, 0], X[:, 1]).T
+    Z = aux.get_remapped_seeds(R, DP(X[:, 0], X[:, 1]).T, periodicx, periodicy)
 
-    return Z, M, H
+    return Z, M, R

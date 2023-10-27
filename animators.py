@@ -3,20 +3,20 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
 #Animate the solution to the ODE
-def point_animator(data, ZorC, tf):
+def point_animator(data, ZorC, box, tf):
     """
     Function animating the data produced by the optimal transport solver.
 
     Inputs:
         data: The data stored by the solver, must be a string
         ZorC: Decide if you want to animate the seeds or the weights, must also be a string
-        Dim: Decide if you want to animate the seeds in 2D or 3D, must be a string
+        box: the fluid domain represented as [xmin, ymin, xmax, ymax]
         tf: The 'Final time' for the solver, used to ensure that the frames and the animation interval are not jarring
 
     Outputs:
         animation: An animation of the seeds or the centroids depending on user choice
     """
-    #Set up the animation 
+    # Set up the animation 
     plt.rcParams['animation.ffmpeg_path'] = 'ffmpeg'
     global Z
     global C
@@ -28,10 +28,29 @@ def point_animator(data, ZorC, tf):
     Z = loaded_data['data1']
     C = loaded_data['data2']
 
-    #Establish Animation parameters
+    # Find the max and min of the seeds so that the animation domains are appropriately sized
+    Zxmax = float('-inf')
+    Zxmin = float('inf')
+    Zymax = float('-inf')
+    Zymin = float('inf')
+
+    for frame in Z:
+        # Find min and maxs in the frame
+        Zxmin_in_frame = np.min(frame[:, 0])
+        Zxmax_in_frame = np.max(frame[:, 0])
+        Zymin_in_frame = np.min(frame[:, 1])
+        Zymax_in_frame = np.max(frame[:, 1])
+
+        # Update the min and max values 
+        Zxmin = min(Zxmin, Zxmin_in_frame)
+        Zxmax = max(Zxmax, Zxmax_in_frame)
+        Zymin = min(Zymin, Zymin_in_frame)
+        Zymax = max(Zymax, Zymax_in_frame)
+
+    # Establish Animation parameters
     Ndt = len(Z)
 
-    #Create the plot
+    # Create the plot
     fig = plt.figure()
     fig.set_size_inches(10, 10, True)
     ax = fig.add_subplot()
@@ -44,15 +63,15 @@ def point_animator(data, ZorC, tf):
         if ZorC == 'Z':
             ax.cla()
             ax.scatter(Z[i][:,0], Z[i][:,1], c = Z[i][:,0], cmap = 'jet', edgecolor = 'none', s = 8)
-            ax.set_xlim([-1, 1])
-            ax.set_ylim([-5, 5])
+            ax.set_xlim([Zxmin, Zxmax])
+            ax.set_ylim([Zymin, Zymax])
             ax.set_xlabel('X')
             ax.set_ylabel('Y')
         elif ZorC == 'C':
             ax.cla()
             ax.scatter(C[i][:,0], C[i][:,1], color = 'blue', s = 8)
-            ax.set_xlim([-1, 1])
-            ax.set_ylim([-2, 2])
+            ax.set_xlim([box[0], box[2]])
+            ax.set_ylim([box[1], box[3]])
             ax.set_xlabel('X')
             ax.set_ylabel('Y')
         else:

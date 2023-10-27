@@ -3,20 +3,19 @@ import optimaltransportsolver as ots
 import weightguess as wg
 import auxfunctions as aux
 
-def SG_solver(Box, InitialSeeds, NumberofSeeds, PercentTolerance, FinalTime, NumberofSteps, PeriodicX, PeriodicY, a, solver = 'Petsc', debug = False):
+def SG_solver(Box, InitialSeeds, PercentTolerance, FinalTime, NumberofSteps, PeriodicX, PeriodicY, mass, solver = 'Petsc', debug = False):
     """
     Function solving the Semi-Geostrophic equations using the geometric method.
 
     Inputs:
-        box: list or tuple defining domain [xmin, ymin, zmin, xmax, ymax, zmax]
-        InitialSeeds: The intial seed positions 
-        NumberofSeeds: The number of seeds
+        box: list or tuple defining domain [xmin, ymin, xmax, ymax]
+        InitialSeeds: The intial seed positions
         PercentTolerance: Percent tolerance, ex. 1 means 1% tolerance
         FinalTime: The end point of the simulation
         NumberofSteps: The number of steps to take to get from t=0 to t=time final
         PeriodicX: a boolian indicating if the boundaries are periodic in x 
         PeriodicY: a boolian indicating if the boundaries are periodic in y
-        a: the replication parameter
+        mass: the target mass if prescribed by the physical conditions
         solver: a string indicating which linear solver to use when solving the optimal transport problem
         debug: a boolian indicating if the code is in debug mode
 
@@ -28,13 +27,13 @@ def SG_solver(Box, InitialSeeds, NumberofSeeds, PercentTolerance, FinalTime, Num
     #Bring parameters into the function
     box = Box
     Z0 = InitialSeeds
-    N = NumberofSeeds
+    N = int(len(Z0))
     per_tol = PercentTolerance
     tf = FinalTime
     Ndt = NumberofSteps
 
     #Construct the domain
-    D = ots.make_domain(box, PeriodicX, PeriodicY, a)
+    D = ots.make_domain(box, PeriodicX, PeriodicY)
 
     #Compute the stepsize
     dt = tf/Ndt
@@ -60,7 +59,7 @@ def SG_solver(Box, InitialSeeds, NumberofSeeds, PercentTolerance, FinalTime, Num
     Z[0] = Z0
 
     w0 = wg.rescale_weights(box, Z[0], np.zeros(shape = (N,)), PeriodicX, PeriodicY)[0] #Rescale the weights to generate an optimized initial guess
-    sol = ots.ot_solve(D, Z[0], w0, err_tol, PeriodicX, PeriodicY, a, solver, debug) #Solve the optimal transport problem
+    sol = ots.ot_solve(D, Z[0], w0, err_tol, PeriodicX, PeriodicY, mass, box, solver, debug) #Solve the optimal transport problem
 
     C[0] = sol[0].copy() #Store the centroids
     w[0] = sol[1].copy() #Store the optimal weights
@@ -76,7 +75,7 @@ def SG_solver(Box, InitialSeeds, NumberofSeeds, PercentTolerance, FinalTime, Num
     Z[1] = aux.get_remapped_seeds(box, Zint, PeriodicX, PeriodicY) #Remap the seeds to lie in the domain
 
     w0 = wg.rescale_weights(box, Z[1], np.zeros(shape = (N,)), PeriodicX, PeriodicY)[0] #Rescale the weights to generate an optimized initial guess
-    sol = ots.ot_solve(D, Z[1], w0, err_tol, PeriodicX, PeriodicY, a, solver, debug) #Solve the optimal transport problem
+    sol = ots.ot_solve(D, Z[1], w0, err_tol, PeriodicX, PeriodicY, mass, box, solver, debug) #Solve the optimal transport problem
 
     C[1] = sol[0].copy() #Store the centroids
     w[1] = sol[1].copy() #Store the optimal weights
@@ -99,7 +98,7 @@ def SG_solver(Box, InitialSeeds, NumberofSeeds, PercentTolerance, FinalTime, Num
         w0 = wg.rescale_weights(box, Z[i], np.zeros(shape = (N,)), PeriodicX, PeriodicY)[0]
 
         #Solve the optimal transport problem
-        sol = ots.ot_solve(D, Z[i], w0, err_tol, PeriodicX, PeriodicY, a, solver, debug)
+        sol = ots.ot_solve(D, Z[i], w0, err_tol, PeriodicX, PeriodicY, mass, box, solver, debug)
         C[i] = sol[0].copy()
 
         #Save the optimal weights
