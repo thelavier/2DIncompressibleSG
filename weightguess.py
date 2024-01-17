@@ -38,7 +38,7 @@ def rescale_weights(bx, Z, psi, PeriodicX, PeriodicY):
         t = np.array(c_dom) - np.array(c_zl)
 
         # Define weights
-        w = (1 - lambda_) * np.square(np.linalg.norm(Z, axis = 1)) - 2 * np.dot(Z, t) - psi / lambda_
+        w = (1 - lambda_) * np.square(np.linalg.norm(Z.astype(float), axis = 1)) - 2 * np.dot(Z, t) - psi / lambda_
 
     elif PeriodicX == True and PeriodicY == False:
         # Define rescaling so that rescaled seeds lie in a translated copy of bx

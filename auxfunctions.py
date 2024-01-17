@@ -1,6 +1,39 @@
 import numpy as np
+import msgpack
 from scipy.optimize import fsolve
 from scipy.optimize import minimize
+
+def load_data(data):
+    # Initialize lists to store the loaded data
+    seeds = []
+    centroids = []
+    weights = []
+    mass = []
+
+    # Load the data from the MessagePack file
+    with open(data, mode='rb') as msgpackfile:
+
+        # Load the remaining data
+        unpacker = msgpack.Unpacker(msgpackfile, raw=False)
+        for row in unpacker:
+            seeds.append(np.array(row.get('Seeds', []), dtype=object).astype(np.float64))
+            centroids.append(np.array(row.get('Centroids', []), dtype=object).astype(np.float64))
+            weights.append(np.array(row.get('Weights', []), dtype=object).astype(np.float64))
+            mass.append(np.array(row.get('Mass', []), dtype=object).astype(np.float64))
+
+    # Exclude the first entry from each list
+    seeds = seeds[1:]
+    centroids = centroids[1:]
+    weights = weights[1:]
+    mass = mass[1:]
+
+    # Access the individual arrays
+    Z = np.array(seeds)
+    C = np.array(centroids)
+    W = np.array(weights)
+    M = np.array(mass)
+
+    return Z, C, W, M
 
 def get_remapped_seeds(box, Z, PeriodicX, PeriodicY):
     """
@@ -109,7 +142,7 @@ def getStableAspectRatio(g, s, f, th0, L, N, phase):
     phaseSpeedInDomainLengthsPerDay = lambda kappa: ((secsPerDay / domLength) * phaseSpeedMetersPerSecond(kappa))
 
     Fun = lambda kappa: phaseSpeedInDomainLengthsPerDay(kappa) - phase
-    kappaStable = fsolve(Fun, 1.2 * kappaCritical, xtol=1e-6, maxfev=1000)
+    kappaStable = float(fsolve(Fun, 1.2 * kappaCritical, xtol=1e-6, maxfev=1000))
 
     stableH = 2 * f * L * kappaStable / N / np.pi
     stableAspectRatio = 2 * L / stableH
@@ -227,3 +260,13 @@ def getTriLattice(bx, delta):
             X[(2 * j - 1) * nx + i - 1] = [(i - 0.5) * delta + bx[0], (2 * j - 1) * h + ex / 2 + bx[1]]
 
     return X
+
+def Properties(Z, C, th0, f, g):
+
+    # Compute Meridonal Velocities
+    MVel = f * (Z[:, :, 0] - C[:, :, 0])
+
+    # Compute Temperature
+    T = (th0 * f ** 2) / g * Z[:, :, 1]
+
+    return MVel, T#, KE

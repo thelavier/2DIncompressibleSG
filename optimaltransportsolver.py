@@ -20,7 +20,7 @@ def make_domain(box, PeriodicX, PeriodicY):
     domain = ConvexPolyhedraAssembly()
 
     L = box[2] - box[0]
-    H = box[1] - box[3]
+    H = box[3] - box[1]
 
     if PeriodicX == False and PeriodicY == False:
         domain.add_box([box[0], box[1]], [box[2], box[3]])
@@ -40,7 +40,7 @@ def make_domain(box, PeriodicX, PeriodicY):
     return domain
 
 #Solve the Optimal transport problem and return the centroids and weights
-def ot_solve(domain, Y, psi0, err_tol, PeriodicX, PeriodicY, mass, box, solver = 'Petsc', debug = False):
+def ot_solve(domain, Y, psi0, err_tol, PeriodicX, PeriodicY, box, solver = 'Petsc', debug = False):
     """
     Function solving the optimal transport problem using the Damped Newton Method and returning the centroids and weights of the optimal diagram.
 
@@ -51,7 +51,6 @@ def ot_solve(domain, Y, psi0, err_tol, PeriodicX, PeriodicY, mass, box, solver =
         err_tol: The error tolerance on the mass of the cells
         PeriodicX: a boolian indicating if the boundaries are periodic in x 
         PeriodicY: a boolian indicating if the boundaries are periodic in y
-        mass: target mass if specified by initial conditions
         box: list or tuple defining domain [xmin, ymin, xmax, ymax]
         solver: a string that indicates which linear solver to use
         debug: a boolian indicating if the code is in debug mode
@@ -62,33 +61,29 @@ def ot_solve(domain, Y, psi0, err_tol, PeriodicX, PeriodicY, mass, box, solver =
     """
     N = Y.shape[0] #Determine the number of seeds
     L = abs(box[2] - box[0])
-    H = abs(box[1] - box[3])
-    if type(mass) != bool:
-        pass
-    else:
-        mass = L * H * np.ones( N ) / N
+    H = abs(box[3] - box[1])
 
     if PeriodicX == False and PeriodicY == False:
-        ot = OptimalTransport(positions = Y, weights = psi0, masses = mass, domain = domain, linear_solver = solver) #Establish the Optimal Transport problem
-        ot.set_stopping_criterion(err_tol, 'max delta masses') #Pick the stopping criterion to be the mass of the cells
+        ot = OptimalTransport(positions = Y, weights = psi0, masses = L * H * np.ones( N ) / N, domain = domain, linear_solver = solver) # Establish the Optimal Transport problem
+        ot.set_stopping_criterion(err_tol, 'max delta masses') # Pick the stopping criterion to be the mass of the cells
 
     elif PeriodicX == True and PeriodicY == True:
-        ot = OptimalTransport(positions = Y, weights = psi0, masses = mass, domain = domain, linear_solver = solver) #Establish the Optimal Transport problem
-        ot.set_stopping_criterion(err_tol, 'max delta masses') #Pick the stopping criterion to be the mass of the cells
+        ot = OptimalTransport(positions = Y, weights = psi0, masses = L * H * np.ones( N ) / N, domain = domain, linear_solver = solver) # Establish the Optimal Transport problem
+        ot.set_stopping_criterion(err_tol, 'max delta masses') # Pick the stopping criterion to be the mass of the cells
         for x in [ -1, 0, 1 ]:
             for y in [ -1, 0, 1 ]:
                 if x or y:
                     ot.pd.add_replication( [ L * x, H * y ] )
 
     elif PeriodicX == True and PeriodicY == False:
-        ot = OptimalTransport(positions = Y, weights = psi0, masses = mass, domain = domain, linear_solver = solver) #Establish the Optimal Transport problem
-        ot.set_stopping_criterion(err_tol, 'max delta masses') #Pick the stopping criterion to be the mass of the cells
+        ot = OptimalTransport(positions = Y, weights = psi0, masses = L * H * np.ones( N ) / N, domain = domain, linear_solver = solver) # Establish the Optimal Transport problem
+        ot.set_stopping_criterion(err_tol, 'max delta masses') # Pick the stopping criterion to be the mass of the cells
         for x in [ -1, 1 ]:
             ot.pd.add_replication( [ L * x, 0 ] )
 
     elif PeriodicX == False and PeriodicY == True:
-        ot = OptimalTransport(positions = Y, weights = psi0, masses = mass, domain = domain, linear_solver = solver) #Establish the Optimal Transport problem
-        ot.set_stopping_criterion(err_tol, 'max delta masses') #Pick the stopping criterion to be the mass of the cells
+        ot = OptimalTransport(positions = Y, weights = psi0, masses = L * H * np.ones( N ) / N, domain = domain, linear_solver = solver) # Establish the Optimal Transport problem
+        ot.set_stopping_criterion(err_tol, 'max delta masses') # Pick the stopping criterion to be the mass of the cells
         for y in [ -1, 1 ]:
             ot.pd.add_replication( [ 0, H * y ] )
     
@@ -100,19 +95,19 @@ def ot_solve(domain, Y, psi0, err_tol, PeriodicX, PeriodicY, mass, box, solver =
     #    print('Target masses before Damped Newton', premass)
     #    print('Weights before Damped Newton', ot.get_weights())
     #    print('Mass before Damped Newton', ot.pd.integrals())
-        print('Total:', sum(ot.pd.integrals()))
+    #    print('Total:', sum(ot.pd.integrals()))
     else:
         pass
 
-    ot.adjust_weights() #Use Damped Newton to find the optimal weight
-    psi = ot.pd.get_weights() #Extract the optimal weights from the solver
+    ot.adjust_weights() # Use Damped Newton to find the optimal weight
+    psi = ot.pd.get_weights() # Extract the optimal weights from the solver
+    postmass = ot.pd.integrals() # Extract the mass of the cells after Damped Newton
 
     if debug == True:
-        postmass = ot.pd.integrals()
-    #    print('Mass after Damped Newton', postmass, 'Total:', sum(postmass)) #Print the mass of each cell
-        print('Difference in traget and final mass', np.linalg.norm(premass-postmass)) #Check how different the final masses are from the target masses
+    #    print('Mass after Damped Newton', postmass, 'Total:', sum(postmass)) # Print the mass of each cell
+        print('Difference in target and final mass', np.linalg.norm(premass - postmass) / np.linalg.norm(premass)) # Check how different the final masses are from the target masses
     else:
         pass
 
-    return (ot.pd.centroids(), psi)
+    return ot.pd.centroids(), psi, postmass
 

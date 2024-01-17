@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-import csv
+import auxfunctions as aux
 
 #Animate the solution to the ODE
 def point_animator(data, ZorC, box, tf):
@@ -22,20 +22,8 @@ def point_animator(data, ZorC, box, tf):
     global Z
     global C
 
-    # Initialize lists to store the loaded data
-    seeds = []
-    centroids = []
-
-    # Load the data from the CSV file
-    with open(data, mode='r') as csvfile:
-        reader = csv.DictReader(csvfile)
-        for row in reader:
-            seeds.append(eval(row['Seeds']))
-            centroids.append(eval(row['Centroids']))
-
-    # Convert the lists to NumPy arrays
-    Z = np.array(seeds)
-    C = np.array(centroids)
+    # Load the data from the file
+    Z, C, _, _ = aux.load_data(data)
 
     # Find the max and min of the seeds so that the animation domains are appropriately sized
     Zxmax = float('-inf')
@@ -71,14 +59,14 @@ def point_animator(data, ZorC, box, tf):
         #Update the plot
         if ZorC == 'Z':
             ax.cla()
-            ax.scatter(Z[i][:,0], Z[i][:,1], c = Z[i][:,0], cmap = 'jet', edgecolor = 'none', s = 8)
+            ax.scatter(Z[i][:,0], Z[i][:,1], c = Z[i][:,0], color = 'blue', s = 8)
             ax.set_xlim([Zxmin, Zxmax])
             ax.set_ylim([Zymin, Zymax])
             ax.set_xlabel('X')
             ax.set_ylabel('Y')
         elif ZorC == 'C':
             ax.cla()
-            ax.scatter(C[i][:,0], C[i][:,1], color = 'blue', s = 8)
+            ax.scatter(C[i][:,0], C[i][:,1], color = 'red', s = 8)
             ax.set_xlim([box[0], box[2]])
             ax.set_ylim([box[1], box[3]])
             ax.set_xlabel('X')
@@ -88,11 +76,11 @@ def point_animator(data, ZorC, box, tf):
 
     if ZorC == 'Z':
         ani = animation.FuncAnimation(fig, update, frames = Ndt, interval = tf)
-        FFwriter = animation.FFMpegWriter(fps = 1000)
+        FFwriter = animation.FFMpegWriter(fps = 60)
         ani.save('./animations/SG_Seeds_2D.gif', writer = FFwriter, dpi = 100)
     elif ZorC == 'C':
         ani = animation.FuncAnimation(fig, update, frames = Ndt, interval = tf)
-        FFwriter = animation.FFMpegWriter(fps = 1000)
+        FFwriter = animation.FFMpegWriter(fps = 60)
         ani.save('./animations/SG_Centroids_2D.gif', writer = FFwriter, dpi = 100)
     else:
         print('Please specify if you want to animate the centroids or the seeds!')
