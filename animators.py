@@ -59,7 +59,7 @@ def point_animator(data, ZorC, box, tf):
         #Update the plot
         if ZorC == 'Z':
             ax.cla()
-            ax.scatter(Z[i][:,0], Z[i][:,1], c = Z[i][:,0], color = 'blue', s = 8)
+            ax.scatter(Z[i][:,0], Z[i][:,1], color = 'blue', s = 8)
             ax.set_xlim([Zxmin, Zxmax])
             ax.set_ylim([Zymin, Zymax])
             ax.set_xlabel('X')
