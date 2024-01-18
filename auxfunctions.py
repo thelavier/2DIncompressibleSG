@@ -269,4 +269,4 @@ def Properties(Z, C, th0, f, g):
     # Compute Temperature
     T = (th0 * f ** 2) / g * Z[:, :, 1]
 
-    return MVel, T#, KE
+    return MVel, T
