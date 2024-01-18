@@ -76,11 +76,11 @@ def point_animator(data, ZorC, box, tf):
 
     if ZorC == 'Z':
         ani = animation.FuncAnimation(fig, update, frames = Ndt, interval = tf)
-        FFwriter = animation.FFMpegWriter(fps = 60)
+        FFwriter = animation.FFMpegWriter(fps = 30)
         ani.save('./animations/SG_Seeds_2D.gif', writer = FFwriter, dpi = 100)
     elif ZorC == 'C':
         ani = animation.FuncAnimation(fig, update, frames = Ndt, interval = tf)
-        FFwriter = animation.FFMpegWriter(fps = 60)
+        FFwriter = animation.FFMpegWriter(fps = 30)
         ani.save('./animations/SG_Centroids_2D.gif', writer = FFwriter, dpi = 100)
     else:
         print('Please specify if you want to animate the centroids or the seeds!')
