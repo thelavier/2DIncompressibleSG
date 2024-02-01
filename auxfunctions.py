@@ -4,62 +4,50 @@ from scipy.optimize import fsolve
 from scipy.optimize import minimize
 
 def load_data(data):
-    # Initialize lists to store the loaded data
-    seeds = []
-    centroids = []
-    weights = []
-    mass = []
+    """
+    Loads data from a MessagePack file and returns numpy arrays of seeds, centroids, weights, and mass.
 
-    # Load the data from the MessagePack file
+    Parameters:
+        data (str): Filename of the MessagePack file to load.
+
+    Returns:
+        tuple: Four numpy arrays containing seeds, centroids, weights, and mass data.
+    """
+    # Initialize lists for data
+    seeds, centroids, weights, mass = [], [], [], []
+
+    # Load data from file
     with open(data, mode='rb') as msgpackfile:
-
-        # Load the remaining data
         unpacker = msgpack.Unpacker(msgpackfile, raw=False)
         for row in unpacker:
-            seeds.append(np.array(row.get('Seeds', []), dtype=object).astype(np.float64))
-            centroids.append(np.array(row.get('Centroids', []), dtype=object).astype(np.float64))
-            weights.append(np.array(row.get('Weights', []), dtype=object).astype(np.float64))
-            mass.append(np.array(row.get('Mass', []), dtype=object).astype(np.float64))
+            seeds.append(np.array(row.get('Seeds', []), dtype=np.float64))
+            centroids.append(np.array(row.get('Centroids', []), dtype=np.float64))
+            weights.append(np.array(row.get('Weights', []), dtype=np.float64))
+            mass.append(np.array(row.get('Mass', []), dtype=np.float64))
 
-    # Exclude the first entry from each list
-    seeds = seeds[1:]
-    centroids = centroids[1:]
-    weights = weights[1:]
-    mass = mass[1:]
-
-    # Access the individual arrays
-    Z = np.array(seeds)
-    C = np.array(centroids)
-    W = np.array(weights)
-    M = np.array(mass)
+    # Convert lists to numpy arrays and exclude the first entry
+    Z, C, W, M = map(lambda x: np.array(x[1:]), (seeds, centroids, weights, mass))
 
     return Z, C, W, M
 
 def get_remapped_seeds(box, Z, PeriodicX, PeriodicY):
     """
-    A function that remaps the seeds so that they remain in the periodic domain
+    Remaps seed positions to stay within a periodic domain.
 
-    Inputs:
-        box: the fluid domain given as a list [xmin, ymin, xmax, ymax]
-        Z: the seed positions
-        PeriodicX: a boolian specifying periodicity in x
-        PeriodicY: a boolian specifying periodicity in y
-    
-    Outputs:
-        Z: the seeds remaped to be inside the domain
+    Parameters:
+        box (list or tuple): Domain boundaries [xmin, ymin, zmin, xmax, ymax, zmax].
+        Z (numpy.ndarray): Seed positions.
+        PeriodicX (bool): Periodicity in the x-axis.
+        PeriodicY (bool): Periodicity in the y-axis.
 
+    Returns:
+        numpy.ndarray: Remapped seed positions.
     """
-    if PeriodicX and PeriodicY:
-        # Wrap points in both x and y components
-        Z[:, 0] = (Z[:, 0] - box[0]) % (box[2] - box[0]) + box[0]
-        Z[:, 1] = (Z[:, 1] - box[1]) % (box[3] - box[1]) + box[1]
-    elif PeriodicX:
-        # Wrap points in the x-component
-        Z[:, 0] = (Z[:, 0] - box[0]) % (box[2] - box[0]) + box[0]
-    elif PeriodicY:
-        # Wrap points in the y-component
-        Z[:, 1] = (Z[:, 1] - box[1]) % (box[3] - box[1]) + box[1]
-    
+    if PeriodicX:
+        Z[:, 0] = (Z[:, 0] - box[0]) % (box[3] - box[0]) + box[0]
+    if PeriodicY:
+        Z[:, 1] = (Z[:, 1] - box[1]) % (box[4] - box[1]) + box[1]
+
     return Z
 
 def zero_y_component(Z, i):
@@ -261,7 +249,24 @@ def getTriLattice(bx, delta):
 
     return X
 
-def Properties(Z, C, th0, f, g):
+def Properties(Z, C, m, th0, f, g, box):
+    """
+    Computes various physical properties based on seed and centroid positions.
+
+    Parameters:
+        Z (numpy.ndarray): Seed positions.
+        C (numpy.ndarray): Centroid positions.
+        m (numpy.ndarray): Mass array.
+        th0 (float): Background temperature in Kelvin.
+        f (float): Coriolis parameter.
+        g (float): Gravity.
+        box (list or tuple): Domain boundaries.
+
+    Returns:
+        tuple: Calculated Meridional Velocities, Zonal Velocities, Temperature, Total Energy, and Conservation Error.
+    """
+    # Local parameters
+    N = 5e-3 # Bouyancy frequency
 
     # Compute Meridonal Velocities
     MVel = f * (Z[:, :, 0] - C[:, :, 0])
@@ -269,4 +274,56 @@ def Properties(Z, C, th0, f, g):
     # Compute Temperature
     T = (th0 * f ** 2) / g * Z[:, :, 1]
 
-    return MVel, T
+    # Compute Integral of |x|^2
+    domvol = (1 / 3) * (box[0] - box[2]) * (box[1] - box[3]) * \
+       (box[0] ** 2 + box[1] ** 2 + box[2] ** 2 + box[3] ** 2 + box[0] * box[2] + box[1] * box[3])
+
+    # Vectorized computation of Kinetic Energy for each point at every timestep
+    norm_Z_squared = np.sum(Z.astype(float) ** 2, axis=2)
+    dot_Z_C = np.sum(Z * C, axis=2)
+    
+    totalEnergy = (f ** 2 / 2) * (domvol + np.sum(m * norm_Z_squared, axis=1) - 2 * np.sum(m * dot_Z_C, axis=1)) - \
+                    f ** 2 * box[2] * (2 * box[3]) ** 3 / 12 + \
+                    box[2] * N ** 2 * (2 * box[3]) ** 3 / 6
+    
+    meanEnergy = np.mean(totalEnergy)
+
+    ConservationError = (meanEnergy - totalEnergy) / meanEnergy
+
+    return MVel, T, totalEnergy, ConservationError
+
+def compute_normalization(box, ZRef):
+    """
+    Computes a normalization factor based on the domain size and reference positions.
+
+    The normalization factor is used to scale certain calculations, such as error measures,
+    to account for the size of the domain and the scale of the reference positions.
+
+    Args:
+        box (list/tuple): Domain boundaries [xmin, ymin, zmin, xmax, ymax, zmax].
+        ZRef (array): Reference positions, typically a 2D numpy array where each row 
+                      represents a position in space.
+
+    Returns:
+        float: A normalization factor based on the domain size and the maximum position
+               magnitude in the reference positions.
+    """
+    Lx, Ly = box[3] - box[0], box[4] - box[1]
+    return 1 / np.sqrt(np.abs(Lx * Ly) * np.max(np.max(np.abs(ZRef), axis=1)) ** 2)
+
+def get_velocity(Z, C, f):
+    """
+    Calculate velocity components based on seed and centroid positions.
+
+    Parameters:
+        Z (numpy.ndarray): Seed positions.
+        C (numpy.ndarray): Centroid positions.
+        f (float): Coriolis parameter.
+
+    Returns:
+        numpy.ndarray: Meridional velocity
+    
+    Raises:
+        ValueError: If an invalid velocity type is provided.
+    """
+    return f * (Z[:, :, 0] - C[:, :, 0])

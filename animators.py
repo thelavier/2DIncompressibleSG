@@ -6,81 +6,93 @@ import auxfunctions as aux
 #Animate the solution to the ODE
 def point_animator(data, ZorC, box, tf):
     """
-    Function animating the data produced by the optimal transport solver.
+    Animates the solution to the ODE using data from the optimal transport solver.
 
-    Inputs:
-        data: The data stored by the solver, must be a string
-        ZorC: Decide if you want to animate the seeds or the weights, must also be a string
-        box: the fluid domain represented as [xmin, ymin, xmax, ymax]
-        tf: The 'Final time' for the solver, used to ensure that the frames and the animation interval are not jarring
+    Parameters:
+        data (str): File name containing the data.
+        ZorC (str): 'Z' to animate seeds, 'C' to animate weights.
+        box (list or tuple): Domain definition [xmin, ymin, zmin, xmax, ymax, zmax].
+        tf (int): Final time for the solver to determine frame rate.
 
-    Outputs:
-        animation: An animation of the seeds or the centroids depending on user choice
+    Returns:
+        Matplotlib animation: An animation of the seeds or centroids.
     """
     # Set up the animation 
     plt.rcParams['animation.ffmpeg_path'] = 'ffmpeg'
-    global Z
-    global C
 
     # Load the data from the file
     Z, C, _, _ = aux.load_data(data)
 
-    # Find the max and min of the seeds so that the animation domains are appropriately sized
-    Zxmax = float('-inf')
-    Zxmin = float('inf')
-    Zymax = float('-inf')
-    Zymin = float('inf')
+    # Determine animation bounds
+    Z_bounds = get_animation_bounds(Z) if ZorC == 'Z' else box
+    C_bounds = get_animation_bounds(C) if ZorC == 'C' else box
 
-    for frame in Z:
-        # Find min and maxs in the frame
-        Zxmin_in_frame = np.min(frame[:, 0])
-        Zxmax_in_frame = np.max(frame[:, 0])
-        Zymin_in_frame = np.min(frame[:, 1])
-        Zymax_in_frame = np.max(frame[:, 1])
+    # Initialize plot
+    fig, ax = initialize_plot()
 
-        # Update the min and max values 
-        Zxmin = min(Zxmin, Zxmin_in_frame)
-        Zxmax = max(Zxmax, Zxmax_in_frame)
-        Zymin = min(Zymin, Zymin_in_frame)
-        Zymax = max(Zymax, Zymax_in_frame)
+    # Create and save the animation
+    ani = create_animation(fig, ax, Z, C, ZorC, Z_bounds, C_bounds, tf)
+    save_animation(ani, ZorC)
 
-    # Establish Animation parameters
-    Ndt = len(Z)
+def get_animation_bounds(frames):
+    """
+    Calculate the bounds for the animation based on the data frames.
+    """
+    all_points = np.concatenate(frames)
+    min_bounds = np.min(all_points, axis=0)
+    max_bounds = np.max(all_points, axis=0)
+    return [min_bounds[0], min_bounds[1], max_bounds[0], max_bounds[1]]
 
-    # Create the plot
+def initialize_plot():
+    """
+    Initialize the plot based on the specified dimension.
+    """
     fig = plt.figure()
     fig.set_size_inches(10, 10, True)
     ax = fig.add_subplot()
+    return fig, ax
 
+def create_animation(fig, ax, Z, C, ZorC, Z_bounds, C_bounds, tf):
+    """
+    Create the animation object.
+    """
+    Ndt = len(Z)
+    update_func = get_update_function(ax, Z, C, ZorC, Z_bounds, C_bounds)
+    return animation.FuncAnimation(fig, update_func, frames=Ndt, interval=tf)
+
+def get_update_function(ax, Z, C, ZorC, Z_bounds, C_bounds):
+    """
+    Returns the appropriate update function for the animation.
+    """
     def update(i):
-        global Z
-        global C
-
-        #Update the plot
+        ax.cla()
         if ZorC == 'Z':
-            ax.cla()
-            ax.scatter(Z[i][:,0], Z[i][:,1], color = 'blue', s = 8)
-            ax.set_xlim([Zxmin, Zxmax])
-            ax.set_ylim([Zymin, Zymax])
-            ax.set_xlabel('X')
-            ax.set_ylabel('Y')
+            plot_data(ax, Z[i], Z_bounds, ZorC)
         elif ZorC == 'C':
-            ax.cla()
-            ax.scatter(C[i][:,0], C[i][:,1], color = 'red', s = 8)
-            ax.set_xlim([box[0], box[2]])
-            ax.set_ylim([box[1], box[3]])
-            ax.set_xlabel('X')
-            ax.set_ylabel('Y')
+            plot_data(ax, C[i], C_bounds, ZorC)
         else:
-            print('Please specify if you want to animate the centroids or the seeds!')
+            raise ValueError('Invalid ZorC value. Choose "Z" for seeds or "C" for centroids.')
 
-    if ZorC == 'Z':
-        ani = animation.FuncAnimation(fig, update, frames = Ndt, interval = tf)
-        FFwriter = animation.FFMpegWriter(fps = 30)
-        ani.save('./animations/SG_Seeds_2D.gif', writer = FFwriter, dpi = 100)
-    elif ZorC == 'C':
-        ani = animation.FuncAnimation(fig, update, frames = Ndt, interval = tf)
-        FFwriter = animation.FFMpegWriter(fps = 30)
-        ani.save('./animations/SG_Centroids_2D.gif', writer = FFwriter, dpi = 100)
-    else:
-        print('Please specify if you want to animate the centroids or the seeds!')
+    return update
+
+def plot_data(ax, data, bounds, ZorC):
+    """
+    Plot the data on the given axis based on the dimension.
+    """
+    color = 'blue' if ZorC == 'Z' else 'red'  # Set color based on ZorC
+    ax.scatter(data[:,0], data[:,1], color = color, s=8)
+    ax.set_xlim([bounds[0], bounds[2]])
+    ax.set_ylim([bounds[1], bounds[3]])
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+
+def save_animation(ani, ZorC):
+    """
+    Save the animation to a file.
+    """
+    filename = f'./animations/SG_{"Seeds" if ZorC == "Z" else "Centroids"}.gif'
+    FFwriter = animation.FFMpegWriter(fps=30)
+    ani.save(filename, writer=FFwriter, dpi=100)
+
+# Example usage
+# point_animator('data_file', 'Z', [0, 0, 0, 10, 10, 10], 1000)

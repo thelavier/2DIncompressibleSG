@@ -5,109 +5,63 @@ from pysdot.domain_types import ConvexPolyhedraAssembly
 #Constructs a domain to be passed to the laguerre functions
 def make_domain(box, PeriodicX, PeriodicY):
     """
-    Function returning the source domain for the optimal tranpsort problem.
+    Constructs a domain for the optimal transport problem.
 
-    Inputs:
-        box: list or tuple defining domain [xmin, ymin, xmax, ymax]
-        img: the measure
-        PeriodicX: a boolian indicating if the boundaries are periodic in x 
-        PeriodicY: a boolian indicating if the boundaries are periodic in y
-        a: the replication parameter
+    Parameters:
+        box (list/tuple): Domain boundaries [xmin, ymin, zmin, xmax, ymax, zmax].
+        PeriodicX, PeriodicY (bool): Periodicity flags for each axis.
 
-    Outputs:
-        domain: domain object for passing to optimal transport solver
+    Returns:
+        ConvexPolyhedraAssembly: Domain object for the optimal transport solver.
     """
     domain = ConvexPolyhedraAssembly()
+    Lx, Ly = [box[i+2] - box[i] for i in range(2)]
 
-    L = box[2] - box[0]
-    H = box[3] - box[1]
+    # Calculate the offset and size for each dimension based on periodicity
+    size = [2 * Lx if PeriodicX else box[2], 
+            2 * Ly if PeriodicY else box[3]]
 
-    if PeriodicX == False and PeriodicY == False:
-        domain.add_box([box[0], box[1]], [box[2], box[3]])
+    offset = [-Lx if PeriodicX else box[0], 
+              -Ly if PeriodicY else box[1]]
 
-    elif PeriodicX == True and PeriodicY == False:
-        domain.add_box([-L, box[1]], [2 * L, box[3]])
-
-    elif PeriodicX == False and PeriodicY == True:
-        domain.add_box([box[0], -H], [box[2], 2 * H])
-
-    elif PeriodicX == True and PeriodicY == True:
-        domain.add_box([-L, -H], [2 * L, 2 * H])
-
-    else:
-        AssertionError('Please specify periodicity.')
-        
+    domain.add_box(offset, size)
     return domain
 
 #Solve the Optimal transport problem and return the centroids and weights
 def ot_solve(domain, Y, psi0, err_tol, PeriodicX, PeriodicY, box, solver = 'Petsc', debug = False):
     """
-    Function solving the optimal transport problem using the Damped Newton Method and returning the centroids and weights of the optimal diagram.
+    Solves the optimal transport problem and returns centroids, weights, and cell masses.
 
-    Inputs:
-        domain: The source domain of the optimal transport problem
-        Y: The seed positions 
-        psi0: The inital weight guess for each seed
-        err_tol: The error tolerance on the mass of the cells
-        PeriodicX: a boolian indicating if the boundaries are periodic in x 
-        PeriodicY: a boolian indicating if the boundaries are periodic in y
-        box: list or tuple defining domain [xmin, ymin, xmax, ymax]
-        solver: a string that indicates which linear solver to use
-        debug: a boolian indicating if the code is in debug mode
+    Parameters:
+        domain (ConvexPolyhedraAssembly): Source domain of the optimal transport problem.
+        Y (numpy.ndarray): Seed positions.
+        psi0 (numpy.ndarray): Initial weight guesses.
+        err_tol (float): Error tolerance for cell mass.
+        PeriodicX, PeriodicY (bool): Periodicity flags.
+        box (list/tuple): Domain boundaries.
+        solver (str): Linear solver to use ('Petsc' or 'Scipy').
+        debug (bool): Flag to enable debugging information.
 
-    Outputs:
-        centroids: The centroids of the optimal Laguerre diagram
-        psi: The optimal weights
+    Returns:
+        tuple: Centroids, optimal weights, and cell masses after optimization.
     """
-    N = Y.shape[0] #Determine the number of seeds
-    L = abs(box[2] - box[0])
-    H = abs(box[3] - box[1])
+    N = Y.shape[0]
+    Lx, Ly = [abs(box[i+2] - box[i]) for i in range(2)]
+    ot = OptimalTransport(positions=Y, weights=psi0, masses=Lx * Ly * np.ones(N) / N, domain=domain, linear_solver=solver)
+    ot.set_stopping_criterion(err_tol, 'max delta masses')
 
-    if PeriodicX == False and PeriodicY == False:
-        ot = OptimalTransport(positions = Y, weights = psi0, masses = L * H * np.ones( N ) / N, domain = domain, linear_solver = solver) # Establish the Optimal Transport problem
-        ot.set_stopping_criterion(err_tol, 'max delta masses') # Pick the stopping criterion to be the mass of the cells
+    # Adding replications based on periodicity
+    for x in range(-int(PeriodicX), int(PeriodicX) + 1):
+        for y in range(-int(PeriodicY), int(PeriodicY) + 1):
+            if x != 0 or y != 0:
+                ot.pd.add_replication([Lx * x, Ly * y])
 
-    elif PeriodicX == True and PeriodicY == True:
-        ot = OptimalTransport(positions = Y, weights = psi0, masses = L * H * np.ones( N ) / N, domain = domain, linear_solver = solver) # Establish the Optimal Transport problem
-        ot.set_stopping_criterion(err_tol, 'max delta masses') # Pick the stopping criterion to be the mass of the cells
-        for x in [ -1, 0, 1 ]:
-            for y in [ -1, 0, 1 ]:
-                if x or y:
-                    ot.pd.add_replication( [ L * x, H * y ] )
+    premass = ot.get_masses() if debug else None
+    ot.adjust_weights()
+    psi = ot.get_weights()
+    postmass = ot.pd.integrals()
 
-    elif PeriodicX == True and PeriodicY == False:
-        ot = OptimalTransport(positions = Y, weights = psi0, masses = L * H * np.ones( N ) / N, domain = domain, linear_solver = solver) # Establish the Optimal Transport problem
-        ot.set_stopping_criterion(err_tol, 'max delta masses') # Pick the stopping criterion to be the mass of the cells
-        for x in [ -1, 1 ]:
-            ot.pd.add_replication( [ L * x, 0 ] )
-
-    elif PeriodicX == False and PeriodicY == True:
-        ot = OptimalTransport(positions = Y, weights = psi0, masses = L * H * np.ones( N ) / N, domain = domain, linear_solver = solver) # Establish the Optimal Transport problem
-        ot.set_stopping_criterion(err_tol, 'max delta masses') # Pick the stopping criterion to be the mass of the cells
-        for y in [ -1, 1 ]:
-            ot.pd.add_replication( [ 0, H * y ] )
-    
-    else:
-        AssertionError('Please specify the periodicity.')
-
-    if debug == True:
-        premass = ot.get_masses()
-    #    print('Target masses before Damped Newton', premass)
-    #    print('Weights before Damped Newton', ot.get_weights())
-    #    print('Mass before Damped Newton', ot.pd.integrals())
-    #    print('Total:', sum(ot.pd.integrals()))
-    else:
-        pass
-
-    ot.adjust_weights() # Use Damped Newton to find the optimal weight
-    psi = ot.pd.get_weights() # Extract the optimal weights from the solver
-    postmass = ot.pd.integrals() # Extract the mass of the cells after Damped Newton
-
-    if debug == True:
-    #    print('Mass after Damped Newton', postmass, 'Total:', sum(postmass)) # Print the mass of each cell
-        print('Difference in target and final mass', np.linalg.norm(premass - postmass) / np.linalg.norm(premass)) # Check how different the final masses are from the target masses
-    else:
-        pass
+    if debug:
+        print('Difference in target and final mass', np.linalg.norm(premass - postmass) / np.linalg.norm(premass))
 
     return ot.pd.centroids(), psi, postmass
-
