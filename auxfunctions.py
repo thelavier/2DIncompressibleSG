@@ -14,7 +14,7 @@ def load_data(data):
         tuple: Four numpy arrays containing seeds, centroids, weights, and mass data.
     """
     # Initialize lists for data
-    seeds, centroids, weights, mass = [], [], [], []
+    seeds, centroids, weights, mass, tc = [], [], [], [], []
 
     # Load data from file
     with open(data, mode='rb') as msgpackfile:
@@ -24,11 +24,12 @@ def load_data(data):
             centroids.append(np.array(row.get('Centroids', []), dtype=np.float64))
             weights.append(np.array(row.get('Weights', []), dtype=np.float64))
             mass.append(np.array(row.get('Mass', []), dtype=np.float64))
+            tc.append(np.array(row.get('TransportCost', []), dtype=np.float64))
 
     # Convert lists to numpy arrays and exclude the first entry
-    Z, C, W, M = map(lambda x: np.array(x[1:]), (seeds, centroids, weights, mass))
+    Z, C, W, M, TC = map(lambda x: np.array(x[1:]), (seeds, centroids, weights, mass, tc))
 
-    return Z, C, W, M
+    return Z, C, W, M, TC
 
 def get_remapped_seeds(box, Z, PeriodicX, PeriodicY):
     """
@@ -44,26 +45,11 @@ def get_remapped_seeds(box, Z, PeriodicX, PeriodicY):
         numpy.ndarray: Remapped seed positions.
     """
     if PeriodicX:
-        Z[:, 0] = (Z[:, 0] - box[0]) % (box[3] - box[0]) + box[0]
+        Z[:, 0] = (Z[:, 0] - box[0]) % (box[2] - box[0]) + box[0]
     if PeriodicY:
-        Z[:, 1] = (Z[:, 1] - box[1]) % (box[4] - box[1]) + box[1]
+        Z[:, 1] = (Z[:, 1] - box[1]) % (box[3] - box[1]) + box[1]
 
     return Z
-
-def zero_y_component(Z, i):
-    """
-    A function that zero's out the y component of the seeds for the ODE solver
-
-    Inputs:
-        Z: the seed positions
-        i: the index of the solver
-    
-    Outputs:
-        Zmod: the seed positions modified to have their y component zerod out
-    """
-    Zmod = Z[i].copy()
-    Zmod[:, 1] = 0
-    return Zmod
 
 def coth(x):
     """
@@ -249,7 +235,7 @@ def getTriLattice(bx, delta):
 
     return X
 
-def Properties(Z, C, m, th0, f, g, box):
+def Properties(Z, C, m, TC, th0, f, g, box):
     """
     Computes various physical properties based on seed and centroid positions.
 
@@ -257,6 +243,7 @@ def Properties(Z, C, m, th0, f, g, box):
         Z (numpy.ndarray): Seed positions.
         C (numpy.ndarray): Centroid positions.
         m (numpy.ndarray): Mass array.
+        TC (numpy.ndarray): Transport cost array.
         th0 (float): Background temperature in Kelvin.
         f (float): Coriolis parameter.
         g (float): Gravity.
@@ -274,18 +261,11 @@ def Properties(Z, C, m, th0, f, g, box):
     # Compute Temperature
     T = (th0 * f ** 2) / g * Z[:, :, 1]
 
-    # Compute Integral of |x|^2
-    domvol = (1 / 3) * (box[0] - box[2]) * (box[1] - box[3]) * \
-       (box[0] ** 2 + box[1] ** 2 + box[2] ** 2 + box[3] ** 2 + box[0] * box[2] + box[1] * box[3])
-
-    # Vectorized computation of Kinetic Energy for each point at every timestep
-    norm_Z_squared = np.sum(Z.astype(float) ** 2, axis=2)
-    dot_Z_C = np.sum(Z * C, axis=2)
-    
-    totalEnergy = (f ** 2 / 2) * (domvol + np.sum(m * norm_Z_squared, axis=1) - 2 * np.sum(m * dot_Z_C, axis=1)) - \
+    totalEnergy = (f ** 2 / 2) * np.sum(TC, axis = 1) - \
                     f ** 2 * box[2] * (2 * box[3]) ** 3 / 12 + \
-                    box[2] * N ** 2 * (2 * box[3]) ** 3 / 6
-    
+                    N ** 2 * box[2] * (2 * box[3]) ** 3 / 6 - \
+                    (f ** 2 / 2) * np.sum(m * Z[:,:,1] ** 2, axis = 1)
+
     meanEnergy = np.mean(totalEnergy)
 
     ConservationError = (meanEnergy - totalEnergy) / meanEnergy
@@ -308,7 +288,7 @@ def compute_normalization(box, ZRef):
         float: A normalization factor based on the domain size and the maximum position
                magnitude in the reference positions.
     """
-    Lx, Ly = box[3] - box[0], box[4] - box[1]
+    Lx, Ly = box[2] - box[0], box[3] - box[1]
     return 1 / np.sqrt(np.abs(Lx * Ly) * np.max(np.max(np.abs(ZRef), axis=1)) ** 2)
 
 def get_velocity(Z, C, f):

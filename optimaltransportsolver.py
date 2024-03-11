@@ -47,7 +47,7 @@ def ot_solve(domain, Y, psi0, err_tol, PeriodicX, PeriodicY, box, solver = 'Pets
     """
     N = Y.shape[0]
     Lx, Ly = [abs(box[i+2] - box[i]) for i in range(2)]
-    ot = OptimalTransport(positions=Y, weights=psi0, masses=Lx * Ly * np.ones(N) / N, domain=domain, linear_solver=solver)
+    ot = OptimalTransport(positions=Y, weights=psi0, masses=Lx * Ly * np.ones(N) / N, domain=domain, linear_solver=solver, verbosity=0)
     ot.set_stopping_criterion(err_tol, 'max delta masses')
 
     # Adding replications based on periodicity
@@ -60,8 +60,9 @@ def ot_solve(domain, Y, psi0, err_tol, PeriodicX, PeriodicY, box, solver = 'Pets
     ot.adjust_weights()
     psi = ot.get_weights()
     postmass = ot.pd.integrals()
+    transportcost = ot.pd.second_order_moments()
 
     if debug:
         print('Difference in target and final mass', np.linalg.norm(premass - postmass) / np.linalg.norm(premass))
 
-    return ot.pd.centroids(), psi, postmass
+    return ot.pd.centroids(), psi, postmass, transportcost

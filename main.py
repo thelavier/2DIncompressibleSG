@@ -1,9 +1,11 @@
 import numpy as np
+from scipy import sparse
 import optimaltransportsolver as ots
 import weightguess as wg
 import auxfunctions as aux
-import msgpack 
 import os
+
+import msgpack
 
 def SG_solver(box, Z0, PercentTolerance, FinalTime, Ndt, PeriodicX, PeriodicY, timescale, solver = 'Petsc', debug = False):
     """
@@ -29,9 +31,9 @@ def SG_solver(box, Z0, PercentTolerance, FinalTime, Ndt, PeriodicX, PeriodicY, t
     err_tol = (PercentTolerance / 100) * (ots.make_domain(box, PeriodicX, PeriodicY).measure() / N)
     D = ots.make_domain(box, PeriodicX, PeriodicY) # Construct the domain
 
-    # Setup extended J matrix for RHS of the ODE
+    # Setup extended J1 and J2 matrix for RHS of the ODE
     P = np.array([[0, -1], [1, 0]])
-    J = np.kron(np.eye(N, dtype=int), P)
+    J = sparse.kron(sparse.eye(N, dtype=int), sparse.csr_matrix(P))
 
     # Delete the MessagePack file if it exists to start fresh
     if os.path.exists('./data/SG_data.msgpack'):
@@ -41,7 +43,7 @@ def SG_solver(box, Z0, PercentTolerance, FinalTime, Ndt, PeriodicX, PeriodicY, t
     with open('./data/SG_data.msgpack', 'wb') as msgpackfile:
         # Define the header data
         header_data = {
-            'fieldnames': ['time_step', 'Seeds', 'Centroids', 'Weights', 'Mass'],
+            'fieldnames': ['time_step', 'Seeds', 'Centroids', 'Weights', 'Mass', 'TransportCost'],
         }
 
         # Write the header using MessagePack
@@ -49,7 +51,7 @@ def SG_solver(box, Z0, PercentTolerance, FinalTime, Ndt, PeriodicX, PeriodicY, t
 
     # Open the MessagePack file for writing and write the header
     with open('./data/SG_data.msgpack', 'ab') as msgpackfile:
-        
+
         if debug:
             print("Time Step 0") # Use for tracking progress of the code when debugging.
 
@@ -57,18 +59,20 @@ def SG_solver(box, Z0, PercentTolerance, FinalTime, Ndt, PeriodicX, PeriodicY, t
         w0 = wg.rescale_weights(box, Z0, np.zeros(shape = (N,)), PeriodicX, PeriodicY)[0] #Rescale the weights to generate an optimized initial guess
         sol = ots.ot_solve(D, Z0, w0, err_tol, PeriodicX, PeriodicY, box, solver, debug) #Solve the optimal transport problem
 
-        # Create a sliding window buffer for Z, C, and w
+        # Create a sliding window buffer for Z, C, w, and M
         Z_window = [Z0.copy(), Z0.copy(), Z0.copy()]
         C_window = [sol[0].copy(), sol[0].copy(), sol[0].copy()]
         w_window = [sol[1].copy(), sol[1].copy(), sol[1].copy()]
         m_window = [sol[2].copy(), sol[2].copy(), sol[2].copy()]
+        TC_window = [sol[3].copy(), sol[3].copy(), sol[3].copy()]
 
         if debug:
             print("Time Step", 1) # Use for tracking progress of the code when debugging.
 
         # Use forward Euler to take an initial time step
-        Zmod = aux.zero_y_component(Z_window, 0) #Zero out the y component for the ode solver
-        Zint = Z_window[0] + dt * timescale * (J @ (np.array(Zmod - C_window[0]).flatten())).reshape((N, 2)) #Use forward Euler
+        Zmod = Z_window[0].copy() 
+        Zmod[:, 1] = 0 # Zero out the y component directly
+        Zint = Z_window[0] + dt * timescale * J.dot(np.array(C_window[0] - Zmod).flatten()).reshape((N, 2)) #Use forward Euler
         Z_window[1] = aux.get_remapped_seeds(box, Zint, PeriodicX, PeriodicY) #Remap the seeds to lie in the domain
 
         w0 = wg.rescale_weights(box, Z_window[1], np.zeros(shape = (N,)), PeriodicX, PeriodicY)[0] #Rescale the weights to generate an optimized initial guess
@@ -77,6 +81,7 @@ def SG_solver(box, Z0, PercentTolerance, FinalTime, Ndt, PeriodicX, PeriodicY, t
         C_window[1] = sol[0].copy() # Store the centroids
         w_window[1] = sol[1].copy() # Store the optimal weights
         m_window[1] = sol[2].copy() # Store the mass of each cell
+        TC_window[1] = sol[3].copy() # Store the transport cost of each cell
 
         # Save the data for time step 0 and 1
         msgpackfile.write(msgpack.packb({
@@ -85,6 +90,7 @@ def SG_solver(box, Z0, PercentTolerance, FinalTime, Ndt, PeriodicX, PeriodicY, t
             'Centroids': C_window[0].tolist(),
             'Weights': w_window[0].tolist(),
             'Mass': m_window[0].tolist(),
+            'TransportCost': TC_window[0].tolist(),
         }))
 
         msgpackfile.write(msgpack.packb({
@@ -93,6 +99,7 @@ def SG_solver(box, Z0, PercentTolerance, FinalTime, Ndt, PeriodicX, PeriodicY, t
             'Centroids': C_window[1].tolist(),
             'Weights': w_window[1].tolist(),
             'Mass': m_window[1].tolist(),
+            'TransportCost': TC_window[1].tolist(),
         }))
 
         # Apply Adams-Bashforth 2 to solve the ODE
@@ -102,9 +109,11 @@ def SG_solver(box, Z0, PercentTolerance, FinalTime, Ndt, PeriodicX, PeriodicY, t
                 print(f"Time Step {i}") # Use for tracking progress of the code when debugging
                 
             # Use Adams-Bashforth to take a time step
-            Zmod1 = aux.zero_y_component(Z_window, (i - 1) % 3) #Zero out the y componenent for the ode solver
-            Zmod2 = aux.zero_y_component(Z_window, (i - 2) % 3) #Zero out the y componenent for the ode solver
-            Zint = Z_window[(i - 1) % 3] + (dt / 2) * timescale * (3 * J @ (np.array(Zmod1 - C_window[(i - 1) % 3]).flatten()) - J @ (np.array(Zmod2 - C_window[(i - 2) % 3]).flatten())).reshape((N, 2)) #Use AB2
+            Zmod1 = Z_window[(i - 1) % 3].copy()
+            Zmod2 = Z_window[(i - 2) % 3].copy()
+            Zmod1[:, 1] = 0 # Zero out the y component
+            Zmod2[:, 1] = 0 # Zero out the y compnent 
+            Zint = Zint = Z_window[(i - 1) % 3] + (dt / 2) * timescale * (3 * J.dot(np.array(C_window[(i - 1) % 3] - Zmod1).flatten()) - J.dot(np.array(C_window[(i - 2) % 3] - Zmod2).flatten())).reshape((N, 2)) #Use AB2
             Z_window[i % 3] = aux.get_remapped_seeds(box, Zint, PeriodicX, PeriodicY) #Remap the seeds to lie in the domain
 
             #Rescale the weights to generate an optimized initial guess
@@ -117,6 +126,7 @@ def SG_solver(box, Z0, PercentTolerance, FinalTime, Ndt, PeriodicX, PeriodicY, t
             C_window[i % 3] = sol[0].copy()
             w_window[i % 3] = sol[1].copy()
             m_window[i % 3] = sol[2].copy()
+            TC_window[i % 3] = sol[3].copy() 
 
             # Save the data for Z, C, w, and M continuously
             msgpackfile.write(msgpack.packb({
@@ -125,4 +135,5 @@ def SG_solver(box, Z0, PercentTolerance, FinalTime, Ndt, PeriodicX, PeriodicY, t
                 'Centroids': C_window[i % 3].tolist(),
                 'Weights': w_window[i % 3].tolist(),
                 'Mass': m_window[i % 3].tolist(),
+                'TransportCost': TC_window[i % 3].tolist(),
             }))

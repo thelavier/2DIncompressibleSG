@@ -21,11 +21,11 @@ def point_animator(data, ZorC, box, tf):
     plt.rcParams['animation.ffmpeg_path'] = 'ffmpeg'
 
     # Load the data from the file
-    Z, C, _, _ = aux.load_data(data)
+    Z, C, _, _, _ = aux.load_data(data)
 
     # Determine animation bounds
-    Z_bounds = get_animation_bounds(Z) if ZorC == 'Z' else box
-    C_bounds = get_animation_bounds(C) if ZorC == 'C' else box
+    Z_bounds = get_animation_bounds(Z)
+    C_bounds = box
 
     # Initialize plot
     fig, ax = initialize_plot()
