@@ -27,20 +27,22 @@ def SG_solver(box, Z0, PercentTolerance, FinalTime, Ndt, PeriodicX, PeriodicY, t
     """
     # Setup and initialization
     N = len(Z0)
-    dt = FinalTime / Ndt
-    err_tol = (PercentTolerance / 100) * (ots.make_domain(box, PeriodicX, PeriodicY).measure() / N)
+    dt = FinalTime / Ndt * timescale
     D = ots.make_domain(box, PeriodicX, PeriodicY) # Construct the domain
+    Lx, Ly = [box[i+2] - box[i] for i in range(2)]
+    err_tol = (PercentTolerance / 100) * (Lx * Ly / N)
+    
 
     # Setup extended J1 and J2 matrix for RHS of the ODE
     P = np.array([[0, -1], [1, 0]])
     J = sparse.kron(sparse.eye(N, dtype=int), sparse.csr_matrix(P))
 
     # Delete the MessagePack file if it exists to start fresh
-    if os.path.exists('./data/SG_data.msgpack'):
-        os.remove('./data/SG_data.msgpack')
+    if os.path.exists('./data/AB2_SG_data.msgpack'):
+        os.remove('./data/AB2_SG_data.msgpack')
 
     # Open the MessagePack file for writing and create the header
-    with open('./data/SG_data.msgpack', 'wb') as msgpackfile:
+    with open('./data/AB2_SG_data.msgpack', 'wb') as msgpackfile:
         # Define the header data
         header_data = {
             'fieldnames': ['time_step', 'Seeds', 'Centroids', 'Weights', 'Mass', 'TransportCost'],
@@ -50,7 +52,7 @@ def SG_solver(box, Z0, PercentTolerance, FinalTime, Ndt, PeriodicX, PeriodicY, t
         msgpackfile.write(msgpack.packb(header_data))
 
     # Open the MessagePack file for writing and write the header
-    with open('./data/SG_data.msgpack', 'ab') as msgpackfile:
+    with open('./data/AB2_SG_data.msgpack', 'ab') as msgpackfile:
 
         if debug:
             print("Time Step 0") # Use for tracking progress of the code when debugging.
@@ -72,7 +74,7 @@ def SG_solver(box, Z0, PercentTolerance, FinalTime, Ndt, PeriodicX, PeriodicY, t
         # Use forward Euler to take an initial time step
         Zmod = Z_window[0].copy() 
         Zmod[:, 1] = 0 # Zero out the y component directly
-        Zint = Z_window[0] + dt * timescale * J.dot(np.array(C_window[0] - Zmod).flatten()).reshape((N, 2)) #Use forward Euler
+        Zint = Z_window[0] + dt * J.dot(np.array(C_window[0] - Zmod).flatten()).reshape((N, 2)) #Use forward Euler
         Z_window[1] = aux.get_remapped_seeds(box, Zint, PeriodicX, PeriodicY) #Remap the seeds to lie in the domain
 
         w0 = wg.rescale_weights(box, Z_window[1], np.zeros(shape = (N,)), PeriodicX, PeriodicY)[0] #Rescale the weights to generate an optimized initial guess
@@ -113,7 +115,7 @@ def SG_solver(box, Z0, PercentTolerance, FinalTime, Ndt, PeriodicX, PeriodicY, t
             Zmod2 = Z_window[(i - 2) % 3].copy()
             Zmod1[:, 1] = 0 # Zero out the y component
             Zmod2[:, 1] = 0 # Zero out the y compnent 
-            Zint = Zint = Z_window[(i - 1) % 3] + (dt / 2) * timescale * (3 * J.dot(np.array(C_window[(i - 1) % 3] - Zmod1).flatten()) - J.dot(np.array(C_window[(i - 2) % 3] - Zmod2).flatten())).reshape((N, 2)) #Use AB2
+            Zint = Zint = Z_window[(i - 1) % 3] + (dt / 2) * (3 * J.dot(np.array(C_window[(i - 1) % 3] - Zmod1).flatten()) - J.dot(np.array(C_window[(i - 2) % 3] - Zmod2).flatten())).reshape((N, 2)) #Use AB2
             Z_window[i % 3] = aux.get_remapped_seeds(box, Zint, PeriodicX, PeriodicY) #Remap the seeds to lie in the domain
 
             #Rescale the weights to generate an optimized initial guess

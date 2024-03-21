@@ -235,7 +235,7 @@ def getTriLattice(bx, delta):
 
     return X
 
-def Properties(Z, C, m, TC, th0, f, g, box):
+def get_properties(Z, C, m, TC, th0, f, g, box):
     """
     Computes various physical properties based on seed and centroid positions.
 
